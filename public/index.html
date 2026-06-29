@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AquaControl — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header span { font-size: 0.85rem; color: #64748b; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #334155;
+  }
+
+  .card .label {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+
+  .card .value {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+
+  .card .sub {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .NORMAL     { background: #14532d; color: #4ade80; }
+  .BAIXO      { background: #713f12; color: #fbbf24; }
+  .CRITICO    { background: #7f1d1d; color: #f87171; }
+  .ENCHIMENTO { background: #1e3a5f; color: #60a5fa; }
+  .MAXIMO     { background: #1e3a5f; color: #60a5fa; }
+  .OFFLINE    { background: #1e1e2e; color: #6b7280; }
+
+  .gauge-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 0;
+  }
+
+  .gauge {
+    position: relative;
+    width: 140px;
+    height: 140px;
+  }
+
+  .gauge svg { transform: rotate(-90deg); }
+
+  .gauge-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .gauge-text .pct { font-size: 1.6rem; font-weight: 700; }
+  .gauge-text .lbl { font-size: 0.7rem; color: #64748b; }
+
+  .chart-card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #334155;
+    margin-bottom: 24px;
+  }
+
+  .chart-card h2 {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin-bottom: 16px;
+  }
+
+  .deposito-select {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-left: auto;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 24px;
+    gap: 12px;
+  }
+
+  .header-row h2 { font-size: 1rem; color: #94a3b8; }
+
+  .refresh-btn {
+    margin-left: auto;
+    background: #334155;
+    border: none;
+    color: #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .refresh-btn:hover { background: #475569; }
+
+  .ultima-atualizacao {
+    font-size: 0.75rem;
+    color: #475569;
+    text-align: right;
+    margin-top: -16px;
+    margin-bottom: 16px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    color: #64748b;
+    border-bottom: 1px solid #334155;
+    font-weight: 500;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #1e293b;
+  }
+
+  tr:hover td { background: #1e293b; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>💧 AquaControl</h1>
+    <span>Monitorização de depósitos</span>
+  </div>
+  <button class="refresh-btn" onclick="carregar()">⟳ Atualizar</button>
+</header>
+
+<div class="header-row">
+  <h2>Depósito:</h2>
+  <select class="deposito-select" id="sel-deposito" onchange="mudarDeposito()">
+    <option value="">— a carregar —</option>
+  </select>
+</div>
+
+<div id="ultima-atualizacao" class="ultima-atualizacao"></div>
+
+<!-- Cards principais -->
+<div class="grid" id="cards">
+  <div class="card">
+    <div class="label">Nível</div>
+    <div class="gauge-wrap">
+      <div class="gauge">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#334155" stroke-width="12"/>
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#3b82f6" stroke-width="12"
+                  stroke-dasharray="339.3" stroke-dashoffset="339.3"
+                  stroke-linecap="round" id="gauge-circle"/>
+        </svg>
+        <div class="gauge-text">
+          <div class="pct" id="gauge-pct">—</div>
+          <div class="lbl">nível</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Estado</div>
+    <div style="margin-top:16px">
+      <span class="badge NORMAL" id="badge-estado">—</span>
+    </div>
+    <div class="sub" id="card-distancia" style="margin-top:12px">—</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Sinal WiFi</div>
+    <div class="value" id="card-rssi">—</div>
+    <div class="sub">dBm</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Total leituras</div>
+    <div class="value" id="card-total">—</div>
+    <div class="sub" id="card-media-nivel">Média: —%</div>
+  </div>
+</div>
+
+<!-- Gráfico -->
+<div class="chart-card">
+  <h2>📈 Histórico de nível (%)</h2>
+  <canvas id="grafico" height="100"></canvas>
+</div>
+
+<!-- Tabela -->
+<div class="chart-card">
+  <h2>📋 Últimas leituras</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Nível</th>
+        <th>Distância</th>
+        <th>Estado</th>
+        <th>RSSI</th>
+      </tr>
+    </thead>
+    <tbody id="tabela-body">
+      <tr><td colspan="5" style="color:#475569">A carregar...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+let grafico = null;
+let depositoAtual = null;
+
+// ---- Inicializar gráfico ----
+
+function iniciarGrafico() {
+  const ctx = document.getElementById('grafico').getContext('2d');
+  grafico = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: 'Nível (%)',
+      data: [],
+      borderColor: '#3b82f6',
+      backgroundColor: 'rgba(59,130,246,0.1)',
+      tension: 0.3,
+      fill: true,
+      pointRadius: 3
+    }]},
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          min: 0, max: 100,
+          ticks: { color: '#64748b', callback: v => v + '%' },
+          grid: { color: '#1e293b' }
+        },
+        x: {
+          ticks: { color: '#64748b', maxTicksLimit: 10 },
+          grid: { color: '#1e293b' }
+        }
+      }
+    }
+  });
+}
+
+// ---- Gauge ----
+
+function atualizarGauge(nivel) {
+  const circunferencia = 339.3;
+  const offset = circunferencia - (nivel / 100) * circunferencia;
+  const circle = document.getElementById('gauge-circle');
+  circle.style.strokeDashoffset = offset;
+
+  const cor = nivel <= 10 ? '#ef4444' : nivel <= 20 ? '#f59e0b' : '#3b82f6';
+  circle.style.stroke = cor;
+
+  document.getElementById('gauge-pct').textContent = nivel.toFixed(1) + '%';
+}
+
+// ---- Carregar lista de depósitos ----
+
+async function carregarDepositos() {
+  const res  = await fetch('/api/depositos');
+  const lista = await res.json();
+
+  const sel = document.getElementById('sel-deposito');
+  sel.innerHTML = '';
+
+  if (lista.length === 0) {
+    sel.innerHTML = '<option value="">Sem dados ainda</option>';
+    return;
+  }
+
+  lista.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = d.id + (d.ultimo_estado ? ` — ${d.ultimo_estado}` : '');
+    if (d.id === depositoAtual) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  if (!depositoAtual) {
+    depositoAtual = lista[0].id;
+  }
+}
+
+// ---- Carregar dados do depósito selecionado ----
+
+async function carregar() {
+  await carregarDepositos();
+  if (!depositoAtual) return;
+
+  const [historico, stats] = await Promise.all([
+    fetch(`/api/depositos/${depositoAtual}/historico?limite=50`).then(r => r.json()),
+    fetch(`/api/depositos/${depositoAtual}/estatisticas`).then(r => r.json())
+  ]);
+
+  if (!historico.length) return;
+
+  const ultima = historico[0];
+
+  // Gauge e cards
+  atualizarGauge(ultima.nivel);
+
+  const badge = document.getElementById('badge-estado');
+  badge.textContent = ultima.estado;
+  badge.className   = 'badge ' + ultima.estado;
+
+  document.getElementById('card-distancia').textContent = `Distância: ${ultima.distancia} mm`;
+  document.getElementById('card-rssi').textContent      = ultima.rssi ?? '—';
+  document.getElementById('card-total').textContent     = stats.total_leituras ?? '—';
+  document.getElementById('card-media-nivel').textContent = `Média: ${parseFloat(stats.nivel_medio).toFixed(1)}%`;
+
+  document.getElementById('ultima-atualizacao').textContent =
+    'Última atualização: ' + new Date(ultima.criado_em).toLocaleString('pt-PT');
+
+  // Gráfico (ordem cronológica)
+  const ordenado = [...historico].reverse();
+  grafico.data.labels   = ordenado.map(l => {
+    const d = new Date(l.criado_em);
+    return d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+  });
+  grafico.data.datasets[0].data = ordenado.map(l => l.nivel);
+  grafico.update();
+
+  // Tabela
+  const tbody = document.getElementById('tabela-body');
+  tbody.innerHTML = historico.map(l => `
+    <tr>
+      <td>${new Date(l.criado_em).toLocaleString('pt-PT')}</td>
+      <td>${parseFloat(l.nivel).toFixed(1)}%</td>
+      <td>${l.distancia} mm</td>
+      <td><span class="badge ${l.estado}">${l.estado}</span></td>
+      <td>${l.rssi ?? '—'} dBm</td>
+    </tr>
+  `).join('');
+}
+
+function mudarDeposito() {
+  depositoAtual = document.getElementById('sel-deposito').value;
+  carregar();
+}
+
+// ---- Arranque ----
+
+iniciarGrafico();
+carregar();
+setInterval(carregar, 15000); // atualiza de 15 em 15 segundos
+</script>
+</body>
+</html>
